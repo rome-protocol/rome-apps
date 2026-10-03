@@ -361,11 +361,10 @@ async fn main() -> anyhow::Result<()> {
         {
             let pool = pool.clone();
             let poll = cfg.throughput_record_poll_interval();
-            let recompute = cfg.throughput_record_recompute_interval();
             supervise("throughput_record", move || {
                 let pool = pool.clone();
                 async move {
-                    throughput_record::run(pool, chain_id, poll, recompute).await
+                    throughput_record::run(pool, chain_id, poll).await
                 }
             })
         },

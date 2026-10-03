@@ -82,7 +82,7 @@ pub fn histogram_of(points: &[Point]) -> Hist {
     h
 }
 
-/// `points` MUST be ascending by block. Builds both top-10 lists from scratch (seed / backstop).
+/// `points` MUST be ascending by block. Builds both top-10 lists from scratch (seed).
 pub fn compute_record(points: &[Point], w: usize, min_elapsed: i64) -> Record {
     let blocks = topk_blocks(
         points
@@ -158,8 +158,8 @@ fn topk_blocks(mut all: Vec<BlockRec>) -> Vec<BlockRec> {
 
 /// Incremental merge: fold blocks/windows NEW since `cursor_block` into an existing top-K record.
 /// `overlap_points` MUST include the W-1 points before the first new block so boundary windows form.
-/// Correct for append-only growth; the worker's periodic full recompute self-heals any historical
-/// change (e.g. a backfill) — spec §6.
+/// Correct for append-only growth; a historical change (e.g. a backfill) is picked up
+/// only by deleting the worker's cursor row, which forces a full rebuild.
 pub fn merge_record(
     existing: &Record,
     overlap_points: &[Point],
@@ -248,7 +248,7 @@ fn cmp_windows(a: &WindowRec, b: &WindowRec) -> std::cmp::Ordering {
     b.app_tps.partial_cmp(&a.app_tps).unwrap().then(a.from_block.cmp(&b.from_block))
 }
 
-/// Paged full rebuild (seed / backstop). Feed it pages of ascending points with
+/// Paged full rebuild (seed). Feed it pages of ascending points with
 /// `push_page`; memory stays proportional to one page plus a fixed-size state, and
 /// `finish` yields the same `Record` (and cursor) `compute_record` over every point would.
 ///
