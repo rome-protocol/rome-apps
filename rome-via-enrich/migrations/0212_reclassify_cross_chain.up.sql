@@ -1,0 +1,21 @@
+-- 0212_reclassify_cross_chain.up.sql
+--
+-- Reset the cross_chain worker cursor so the depth-aware Rhea/Remus/Romulus
+-- classifier re-stamps every existing row.
+--
+-- Why: the previous classifier inspected programs at ANY CPI depth, so a
+-- cached-wrapper's inner SPL `transfer` (a depth-≥2 CPI under the rome-evm
+-- program) flipped single-chain DeFi (Comet supply/withdraw, Uniswap swaps)
+-- to Romulus. The corrected worker only counts TOP-LEVEL (depth-1) native
+-- instructions, so those rows must be reclassified.
+--
+-- We delete only the cursor (not the rows): the worker's UPSERT
+-- (`ON CONFLICT (chain_id, tx_hash) DO UPDATE`) re-stamps `rome_tx_type` +
+-- `evm_legs` + `solana_legs` in place as it re-walks the chain from slot 0.
+--
+-- OPERATOR NOTE: re-scanning re-fetches each tx's Solana transaction(s) via
+-- `getTransaction` RPC (one call per linked sol_signature). Expect a throttled
+-- background re-scan that ramps with `batch_size` / `poll_interval`; it is
+-- idempotent and self-limiting (cursor advances per batch). The cursor-advance
+-- logic itself is unchanged.
+DELETE FROM rome_via.enrich_cursors WHERE worker = 'cross_chain';

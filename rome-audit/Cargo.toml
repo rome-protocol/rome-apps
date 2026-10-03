@@ -1,0 +1,77 @@
+[package]
+name = "rome-audit"
+version = "0.1.0"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[[bin]]
+name = "rome-audit"
+path = "src/main.rs"
+
+[dependencies]
+# U256 for full-width uint256 arg parsing — decimal string, never a native
+# int (audit-trail convention). Matches
+# rome-via-enrich's identical use of ethers::U256 for Transfer-amount parsing.
+# Also used by hercules_reads.rs to parse Hercules' `receipt_params` JSONB
+# (ethers' H256/U64/U256 Deserialize accepts the real 0x-hex wire format).
+ethers = { workspace = true }
+hex = { workspace = true }
+thiserror = { workspace = true }
+# NUMERIC(78,0)-bound uint256 amounts (yield_run/yield_credit, P4b-i) — never
+# i64/u128 (both overflow a real 256-bit share/total). Same crate + pattern as
+# rome-via-sync/rome-via-api's own Transfer-amount handling; sqlx's own
+# `bigdecimal` feature (already enabled workspace-wide) binds this type
+# directly to NUMERIC columns.
+bigdecimal = { workspace = true }
+# ArgValue::Serialize (untagged) for the P1 `audit.chain_event.args` JSONB write.
+serde = { workspace = true }
+# Builds the JSONB `args` value from a DecodedEvent; parses Hercules'
+# `receipt_params` JSONB in hercules_reads.rs. Workspace dep, already resolved.
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+# `ResolverRpc`/`RegistrySource` are async/sync trait objects (P3 resolution
+# seam, IMPL-PLAN §2 P2-numbered "token-parameterized historical
+# resolution") — already resolved in the workspace Cargo.lock via
+# rome-jito-bundler/rome-evm-client, no lockfile move.
+async-trait = { workspace = true }
+# P5a overlay ingest HMAC auth (`src/overlay/auth.rs`) + `evidence_hash`
+# (`src/overlay/canonical.rs`) — both already resolved in the workspace
+# Cargo.lock (see root Cargo.toml), no lockfile move.
+hmac = { workspace = true }
+sha2 = { workspace = true }
+
+# Binary-only, mirroring rome-via-sync's crate shape (config/cli/server/main):
+# TOML config loading, CLI arg parsing, dotenv, structured logging, the
+# health-check HTTP server, and the run loop's CancellationToken. All
+# workspace deps already resolved by rome-via-sync/rome-via-enrich — no
+# lockfile move.
+toml = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+dotenv = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["json"] }
+axum = { workspace = true }
+tokio-util = { workspace = true }
+rome-obs = { workspace = true }
+
+[dev-dependencies]
+# keccak256, to independently verify registered topic0 constants against
+# their event signatures (same pattern as rome-via-enrich's
+# `seed_selectors_match_keccak256_of_signature` — already resolved in
+# Cargo.lock at 0.10.8, so this doesn't move the lockfile).
+sha3 = "0.10"
+# P5a `tests/overlay_db.rs` — drives `start_overlay_server` as a REAL HTTP
+# client (not axum's in-process `TestServer`), so the auth header path is
+# exercised exactly as Bloom would hit it. Already resolved in the
+# workspace Cargo.lock (rome-oracle-portal client / registry fetchers),
+# no lockfile move.
+reqwest = { workspace = true }
+# `tests/common/mod.rs`'s `TestDb` guard delegates `sqlx::Executor`/`Acquire`
+# to the wrapped `PgPool` so every existing test call site keeps compiling
+# unchanged — needs the same `BoxFuture`/`BoxStream` types sqlx's own `&Pool`
+# impls return. Already resolved in the workspace Cargo.lock (sqlx's own
+# transitive dep), no lockfile move.
+futures-core = { version = "0.3", default-features = false }

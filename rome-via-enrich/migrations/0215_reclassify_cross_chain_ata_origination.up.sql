@@ -1,0 +1,28 @@
+-- 0215_reclassify_cross_chain_ata_origination.up.sql
+--
+-- Reset the cross_chain worker cursor so the corrected Rhea/Romulus classifier
+-- re-stamps every existing row.
+--
+-- Why: two corrections to the classifier (see cross_chain.rs):
+--   1. The Associated Token Account program is now infra (DEFAULT_INFRA). A
+--      top-level ATA `createIdempotent` is the SDK/proxy *execution prelude* —
+--      it ensures the transfer_spl destination ATA exists so the RLP can land —
+--      NOT a composed native leg, so it must not flip a single-chain SPL flow
+--      to Romulus.
+--   2. Origination gate: the unsigned/synthetic lane (`solana_unsigned`,
+--      DoTxUnsigned) is a regular single-chain EVM tx and is never Romulus,
+--      regardless of any top-level program.
+-- Before these fixes, a Solana-origin SPL tx carrying a top-level ATA-create was
+-- the lone false-positive Romulus on Hadrian; it (and any like it) must
+-- reclassify to Rhea.
+--
+-- We delete only the cursor (not the rows): the worker's UPSERT
+-- (`ON CONFLICT (chain_id, tx_hash) DO UPDATE`) re-stamps `rome_tx_type` +
+-- `evm_legs` + `solana_legs` in place as it re-walks the chain from slot 0.
+--
+-- OPERATOR NOTE: re-scanning re-fetches each tx's Solana transaction(s) via
+-- `getTransaction` RPC (one call per linked sol_signature). Expect a throttled
+-- background re-scan that ramps with `batch_size` / `poll_interval`; it is
+-- idempotent and self-limiting (cursor advances per batch). The cursor-advance
+-- logic itself is unchanged.
+DELETE FROM rome_via.enrich_cursors WHERE worker = 'cross_chain';

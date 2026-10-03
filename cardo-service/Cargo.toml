@@ -1,0 +1,52 @@
+[package]
+name = "cardo-service"
+version = "0.1.0"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[features]
+testnet = ["rome-sdk/testnet"]
+mainnet = ["rome-sdk/mainnet"]
+ci = ["rome-sdk/ci"]
+default = ["ci"]
+
+[[bin]]
+name = "cardo-service"
+path = "src/main.rs"
+
+[lib]
+name = "cardo_service"
+path = "src/lib.rs"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+hex = { workspace = true }
+reqwest = { workspace = true }
+sqlx = { workspace = true }
+jsonschema = { workspace = true }
+ed25519-dalek = { workspace = true }
+sha2 = { workspace = true }
+chrono = { workspace = true }
+axum = { workspace = true }
+utoipa = { workspace = true }
+rome-sdk = { workspace = true, default-features = false }
+ethers = { workspace = true }
+solana-sdk = { workspace = true }
+solana-client = { workspace = true }
+solana-commitment-config = { workspace = true }
+url = { workspace = true }
+rmcp = { version = "=1.5.0", features = ["server", "transport-io", "transport-streamable-http-server"] }
+tokio-util = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.10"
+serde_urlencoded = "0.7"
+http-body-util = "0.1"
+tower = { version = "0.4", features = ["util"] }

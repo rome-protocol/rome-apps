@@ -1,0 +1,21 @@
+-- The method_decoder worker asks "which selectors have I not resolved yet?".
+-- With no index on method_id that question was answered by a full heap scan of
+-- rome_via.evm_tx: measured on hadrian-lt 2026-07-27 at 4,262 ms and 1,275,483 disk
+-- block reads (~10 GB) PER EXECUTION, returning zero rows. Against a 5s poll it ran
+-- back-to-back — roughly 2 GB/s of continuous waste, and the dominant load on a
+-- Cloud SQL instance shared with three other chains.
+--
+-- Same shape as sync's 0015: a predicate with no supporting index turning a routine
+-- query into a whole-partition scan.
+--
+-- Lives in ENRICH's migrations, not sync's, deliberately: method_decoder is the
+-- consumer, enrich applies migrations before starting its workers, and the rewritten
+-- query (method_decoder::unknown_selectors_sql) is a loose index scan that would be
+-- far WORSE than the original without this index — one probe per distinct selector,
+-- each degenerating into a scan. Co-locating them makes the ordering guaranteed
+-- rather than a startup race between two services.
+--
+-- Selector cardinality is tiny (222 on this chain), so the index is narrow and its
+-- benefit grows as the table does.
+CREATE INDEX IF NOT EXISTS ix_rv_evm_tx_method_id
+  ON rome_via.evm_tx (chain_id, method_id);

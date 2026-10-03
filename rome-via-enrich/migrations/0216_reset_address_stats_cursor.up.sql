@@ -1,0 +1,27 @@
+-- 0216_reset_address_stats_cursor.up.sql
+--
+-- Reset the address_stats worker cursor so it re-walks the chain from slot 0 and
+-- backfills first_seen / last_seen on every existing address row.
+--
+-- Why: the worker read `eth_block.params_block_timestamp` (a NUMERIC epoch,
+-- rome-via-sync migration 0004) as `::TEXT` and `.parse::<DateTime<Utc>>()`d it.
+-- A bare epoch like "1780558086" is not RFC3339, so that parse ALWAYS returned
+-- None and every address was written with NULL first_seen/last_seen (tx_count
+-- still incremented, so counts were correct but timestamps were not). The
+-- corrected worker fetches `::FLOAT8` and converts via `from_timestamp`
+-- (mirroring cross_chain.rs), but rows already inserted keep their NULLs, and
+-- `first_seen` must reflect the EARLIEST tx — which requires re-walking from
+-- slot 0.
+--
+-- We delete only the cursor (not the rows): the worker's UPSERT
+-- (`ON CONFLICT (chain_id, address) DO UPDATE` with `LEAST(first_seen)` /
+-- `GREATEST(last_seen)`) backfills the correct timestamps in place as it
+-- re-walks the chain — first_seen converges to the earliest, last_seen to the
+-- latest. tx_count is unaffected by the re-walk semantics of this fix (the
+-- corrected decode does not change which addresses are counted).
+--
+-- OPERATOR NOTE: the address_stats worker re-scans purely against the local
+-- rome_via_db (no external RPC); it is idempotent and self-limiting (cursor
+-- advances per batch). Expect a throttled background re-scan that ramps with
+-- `batch_size` / `poll_interval`. The cursor-advance logic itself is unchanged.
+DELETE FROM rome_via.enrich_cursors WHERE worker = 'address_stats';

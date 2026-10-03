@@ -1,0 +1,53 @@
+[package]
+name = "rome-via-api"
+version = "0.1.0"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[features]
+testnet = ["rome-sdk/testnet"]
+mainnet = ["rome-sdk/mainnet"]
+ci = ["rome-sdk/ci"]
+default = ["ci"]
+
+[[bin]]
+name = "rome-via-api"
+path = "src/main.rs"
+
+[dependencies]
+rome-via-classify = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+dotenv = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["json"] }
+tokio = { workspace = true }
+rome-obs = { workspace = true }
+rome-sdk = { workspace = true, default-features = false }
+ethers = { workspace = true }
+axum = { workspace = true }
+sqlx = { workspace = true }
+chrono = { workspace = true }
+toml = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+utoipa = { workspace = true }
+utoipa-axum = { workspace = true }
+utoipa-swagger-ui = { workspace = true }
+tower-http = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+bigdecimal = { workspace = true }
+redis = { workspace = true }
+governor = { workspace = true }
+futures = { workspace = true }
+reqwest = { version = "0.12", features = ["json"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+reqwest = { version = "0.12", features = ["json"] }
+serial_test = "3"

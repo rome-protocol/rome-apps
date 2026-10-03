@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardo.rome.builders/schema/catalog.schema.json",
+  "title": "Rome App Distribution Portal — catalog manifest",
+  "type": "object",
+  "required": ["id", "name", "description", "tier", "uniqueness", "why_rome", "categories", "status", "owner", "chain", "urls", "capabilities", "surfaces", "signature"],
+  "properties": {
+    "id":          { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,62}[a-z0-9]$" },
+    "name":        { "type": "string", "minLength": 1, "maxLength": 64 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "icon_url":    { "type": "string", "format": "uri" },
+    "tier":        { "enum": ["featured", "long-tail"] },
+    "uniqueness":  { "enum": ["only-on-rome", "better-on-rome", "parity"] },
+    "why_rome":    { "type": "string", "minLength": 1, "maxLength": 500 },
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "enum": [
+          "yield", "swap-dex", "derivatives", "prediction-markets",
+          "payments", "oracle-data", "bridge-interop",
+          "agent-native", "dev-tools-infra"
+        ]
+      }
+    },
+    "status":            { "enum": ["live", "coming-soon", "deprecated"] },
+    "owner": {
+      "type": "object",
+      "required": ["team", "contact"],
+      "properties": {
+        "team":    { "type": "string", "minLength": 1 },
+        "contact": { "type": "string", "format": "email" }
+      },
+      "additionalProperties": false
+    },
+    "chain": {
+      "type": "object",
+      "required": ["rome_chain_id", "contract_address"],
+      "properties": {
+        "rome_chain_id":    { "type": "integer", "minimum": 1 },
+        "contract_address": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" }
+      },
+      "additionalProperties": false
+    },
+    "solana_programs": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" }
+    },
+    "urls": {
+      "type": "object",
+      "required": ["app", "docs", "source"],
+      "properties": {
+        "app":    { "type": "string", "format": "uri" },
+        "docs":   { "type": "string", "format": "uri" },
+        "source": { "type": "string", "format": "uri" }
+      },
+      "additionalProperties": false
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "kind", "description", "inputs", "outputs", "abi", "abi_hash", "cu_estimate"],
+        "properties": {
+          "name":         { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "kind":         { "enum": ["query", "quote", "execute"] },
+          "description":  { "type": "string", "minLength": 1, "maxLength": 300 },
+          "inputs":       { "type": "object" },
+          "outputs":      { "type": "object" },
+          "abi":          { "type": "string", "minLength": 1 },
+          "abi_hash":     { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "cu_estimate":  { "type": "integer", "minimum": 0 },
+          "example_call": { "type": "object" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "surfaces": {
+      "type": "object",
+      "required": ["mcp_tools", "manifest_url", "rest_base"],
+      "properties": {
+        "mcp_tools":    { "type": "array", "items": { "type": "string" } },
+        "manifest_url": { "type": "string", "format": "uri" },
+        "rest_base":    { "type": "string", "pattern": "^/apps/[a-z][a-z0-9-]*$" }
+      },
+      "additionalProperties": false
+    },
+    "tags":          { "type": "array", "items": { "type": "string" } },
+    "metrics_cache": {
+      "type": "object",
+      "properties": {
+        "tx_7d":             { "type": "integer", "minimum": 0 },
+        "unique_callers_7d": { "type": "integer", "minimum": 0 },
+        "agent_share_7d":    { "type": "number",  "minimum": 0, "maximum": 1 },
+        "gas_usd_7d":        { "type": "number",  "minimum": 0 },
+        "checked_at":        { "type": "string",  "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "signature": {
+      "type": "object",
+      "required": ["alg", "pubkey", "value"],
+      "properties": {
+        "alg":    { "const": "ed25519" },
+        "pubkey": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+        "value":  { "type": "string", "pattern": "^[a-fA-F0-9]{128}$" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

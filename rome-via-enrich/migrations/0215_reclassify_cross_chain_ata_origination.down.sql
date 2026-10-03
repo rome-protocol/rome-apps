@@ -1,0 +1,6 @@
+-- 0215_reclassify_cross_chain_ata_origination.down.sql
+--
+-- No-op. The up migration deletes the cross_chain cursor to force a one-time
+-- reclassification re-scan; the prior cursor value cannot be reconstructed, so
+-- there is nothing to restore. The worker re-establishes its cursor on the next
+-- run. (Reverting this migration does not un-reclassify rows.)

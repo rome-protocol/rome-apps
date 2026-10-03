@@ -1,0 +1,39 @@
+{
+  "name": "meteora-dammv1-pool-creator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Create Meteora DAMMv1 pool on Solana devnet using SDK",
+  "main": "dist/create-dammv1-pool-devnet.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/create-dammv1-pool-devnet.js",
+    "dev": "ts-node create-dammv1-pool-devnet.ts"
+  },
+  "keywords": [
+    "solana",
+    "meteora",
+    "amm",
+    "damm",
+    "defi"
+  ],
+  "author": "",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "dependencies": {
+    "@meteora-ag/dynamic-amm-sdk": "^1.0.0",
+    "@solana/spl-token": "^0.4.0",
+    "@solana/web3.js": "1.98.4",
+    "bn.js": "^5.2.1",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.2.0",
+    "@types/node": "^20.11.30",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  },
+  "overrides": {
+    "@meteora-ag/dynamic-amm-sdk": {
+      "@solana/web3.js": "1.98.4"
+    }
+  }
+}

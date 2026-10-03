@@ -1,0 +1,13 @@
+[package]
+name = "rome-via-classify"
+version = "0.1.0"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[lib]
+name = "rome_via_classify"
+path = "src/lib.rs"
+
+[dependencies]
+serde_json = { workspace = true }

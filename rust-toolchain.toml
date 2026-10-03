@@ -1,0 +1,5 @@
+[toolchain]
+# Keep in lockstep with the Rust base image in docker/Dockerfile so local,
+# CI and Docker builds all compile with the same toolchain.
+channel = "1.93.1"
+components = ["rustfmt", "clippy"]

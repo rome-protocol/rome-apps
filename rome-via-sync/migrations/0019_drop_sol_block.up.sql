@@ -1,0 +1,23 @@
+-- Drop the mirrored copy of raw Solana block payloads.
+--
+-- Mirroring was turned off 2026-07-27 (migration-free, via the mirror_sol_block
+-- flag) and the table observed frozen for 15 hours before this. In that window:
+--
+--   max(slot_number)  unchanged at 479,320,566        (writes genuinely stopped)
+--   idx_tup_fetch     flat across 3 samples 3min apart (no live reader)
+--   seq_tup_read      0                                (never scanned)
+--   idx_scan          17,030,352  vs  n_tup_ins 17,030,341
+--
+-- That last pair is the argument. Every index scan this table ever served was the
+-- ON CONFLICT probe from its own insert; the 11 extra are the diagnostic queries
+-- that measured it. There was never a consumer.
+--
+-- 39 GB on hadrian, ~9.4M rows, and the same again on hadrian-lt.
+--
+-- NOT the same table as the SOURCE indexer's `sol_block`, which is still written
+-- and is actively read ~16 times/second (122.9M rows fetched vs 17.3M inserts).
+-- That one has a real consumer and is deliberately left alone.
+--
+-- Re-enabling the mirror now requires reverting this migration first; the sync
+-- code for it is removed in the same change, so re-enabling means restoring both.
+DROP TABLE IF EXISTS rome_via.sol_block CASCADE;

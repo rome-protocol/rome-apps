@@ -1,0 +1,103 @@
+# =============================================================================
+# Rome Proxy — full configuration reference (every feature, annotated)
+# =============================================================================
+# One YAML/JSON file, located via `-c <path>` or the PROXY_CONFIG env var.
+# This file lists EVERY config block with its default and sensible values. Most
+# features are optional and default to today's behavior — copy only what you need.
+#
+# Field-by-field reference + tuning guidance: docs/PROXY.md §9.
+# Quickstart subset: README.md. Telemetry (OTel) is configured via env vars, not here.
+# This example is the canonical superset of what a deployment's rendered
+# proxy config can contain.
+# =============================================================================
+
+# ── Identity ────────────────────────────────────────────────────────────────
+program_id: "RPTWwELXAY4KC9ZPHhaxp7Sq1hHtU3HNEgLbSegCcWf"   # rome-evm program id
+chain_id: 200010
+proxy_host: "0.0.0.0:9090"                                  # JSON-RPC bind
+
+# ── Solana connectivity + confirmation backend ───────────────────────────────
+solana:
+  rpc_url: "https://your-solana-rpc"
+  commitment: confirmed
+  # rpc_urls: ["https://node2", ...]   # OPTIONAL multi-node submission (extra nodes)
+  confirm:
+    mode: ws                 # poll | ws | hybrid   (omit ⇒ poll @ 200ms)
+    ws_url: "wss://your-solana-rpc/ws"   # required for ws / hybrid
+    on_ws_fail: poll         # poll | error  (ws: fall back to poll while ws is down)
+    poll_interval_ms: 200
+    timeout_ms: 30000
+
+# ── Write lanes (the payer pool) ──────────────────────────────────────────────
+# Concurrency = Σ fee_recipients across payers (e.g. 8 payers × 32 = 256 lanes).
+payers:
+  - payer_keypair: "/keys/payer0.json"
+    fee_recipients: ["0x....", "0x...."]
+    # number_holders: 256    # XOR with fee_recipients — holder-count form
+
+# ── Indexer storage ───────────────────────────────────────────────────────────
+ethereum_storage:
+  type: "pg_storage"         # pg_storage | in_memory
+  connection:
+    database_url: "postgres://user:pass@host/db"
+    max_connections: 16
+
+# ── Gas pricing ───────────────────────────────────────────────────────────────
+gas_price_mul: 1.0           # multiplier applied to the pool-derived gas price
+track_gas: true              # gas-consumption tracking
+# Off ⇒ proxy serves a static gas price. price_manager polls a pool for eth_gasPrice.
+# Matrix + cp-amm sqrt_price mechanics + clamp bounds: docs/GAS_PRICE_POOLS.md
+price_manager:
+  type: meteora_damm_v1_pool # meteora_damm_v1_pool | meteora_damm_v2_pool | hermes_api | fixed
+  pool_address: "VJwzHDDkunWrRS3mDsRd2JRWTt22G5PdRLZjQhWsJga"
+  min_price: 40.0            # OPTIONAL clamp (gas-token/SOL) — caps a manipulated read
+  max_price: 1000.0
+  # url: "https://hermes..." # for type: hermes_api instead of pool_address
+# type: fixed serves a constant gas-token price — no pool, no RPC. `price` is in the
+# same units as min_price/max_price (gas-token per SOL); it still flows through
+# gas_price_mul + reserve, so tune gas_price_mul for a specific final eth_gasPrice.
+# price_manager:
+#   type: fixed
+#   price: 0.045
+
+# ── Solana priority fee (cu_price) + EIP-1559 user tips ───────────────────────
+# DEFAULT-ON, EVM-equivalent: omit this block and the proxy bids the p90 of the
+# recent cluster fee window — which is 0 on a quiet cluster (no charge), rising
+# under real contention. The real-CU gas estimate is on regardless of this block.
+# To DISABLE entirely (byte-identical to no feature): set `enabled: false`.
+# Model: rome-sdk/docs/PRIORITY_FEE.md. Fields: docs/PROXY.md §9.
+priority_fee:
+  enabled: true              # default true; set false to turn the feature off
+  cu_price_percentile: 90    # market bid percentile (p90 of getRecentPrioritizationFees)
+  max_microlamports: 0       # cap on the bid (0 = uncapped); >0 clamps the polled cu_price
+  min_microlamports: 1       # fallback when the fee window is empty (RPC down / quiet cluster)
+  poll_interval_ms: 1000
+
+# ── Mempool batching (multi-DoTx packing) ─────────────────────────────────────
+# OPTIONAL, default OFF. Absent ⇒ each eth_sendRawTransaction submits individually.
+# batching:
+#   max_pack_size: 4         # max EVM txs per Solana tx
+#   max_pack_bytes: 1232     # clamped to the Solana tx-size cap
+#   max_pack_cu: 1400000     # clamped to the per-tx CU cap
+#   pack_concurrency: 1      # parallel packer lanes draining the queue
+#   pack_fill_timeout_ms: 0  # backlog gather window (0 = instant-drain)
+#   intake_capacity: 1024    # bounded queue (backpressures when full, never drops)
+
+# ── Read/write lane knobs ─────────────────────────────────────────────────────
+read_pool_enabled: true      # default ON — offload read emulation to a dedicated low-priority pool; false ⇒ inline
+# max_connections: 50000     # OPTIONAL — omit to derive from the process fd limit
+max_batch_size: 100          # OPTIONAL, default 1000 — max calls per JSON-RPC batch; keep low on public endpoints
+# max_slot_history: 4096     # block/slot history retained
+
+# ── eth_getLogs span cap ──────────────────────────────────────────────────────
+get_logs_max_block_range: 10000    # OPTIONAL, default unlimited — returns -32005 (paginate) over the cap; recommended for public endpoints
+
+# ── Metrics ───────────────────────────────────────────────────────────────────
+# metrics_host: "0.0.0.0:9091"      # OPTIONAL Prometheus /metrics sidecar
+
+# ── Jito bundles ──────────────────────────────────────────────────────────────
+# OPTIONAL, default OFF. Routes eligible raw txs as Jito bundles (1-4 inner + tip).
+# jito_bundler:
+#   cluster: testnet                 # mainnet | testnet | devnet | disabled
+#   default_tip_strategy: { kind: fixed, lamports: 50000 }
+#   # evm_priority_fee_threshold_wei: ...   # optional per-tx auto-promotion gate

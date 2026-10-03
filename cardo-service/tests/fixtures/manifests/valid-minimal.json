@@ -1,0 +1,40 @@
+{
+  "id": "test-app",
+  "name": "Test App",
+  "description": "Minimal test manifest.",
+  "tier": "long-tail",
+  "uniqueness": "parity",
+  "why_rome": "test",
+  "categories": ["yield"],
+  "status": "live",
+  "owner": { "team": "rome-core", "contact": "maintainer@example.com" },
+  "chain": { "rome_chain_id": 200200, "contract_address": "0x0000000000000000000000000000000000000001" },
+  "urls": {
+    "app": "https://example.invalid/app",
+    "docs": "https://example.invalid/docs",
+    "source": "https://example.invalid/source"
+  },
+  "capabilities": [
+    {
+      "name": "ping",
+      "kind": "query",
+      "description": "returns pong",
+      "inputs": { "type": "object" },
+      "outputs": { "type": "object" },
+      "abi": "function ping() view returns (string)",
+      "abi_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "cu_estimate": 1000
+    }
+  ],
+  "surfaces": {
+    "mcp_tools": ["test_app.ping"],
+    "manifest_url": "https://cardo.rome.builders/manifests/test-app.json",
+    "rest_base": "/apps/test-app"
+  },
+  "tags": [],
+  "signature": {
+    "alg": "ed25519",
+    "pubkey": "0000000000000000000000000000000000000000000000000000000000000000",
+    "value": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

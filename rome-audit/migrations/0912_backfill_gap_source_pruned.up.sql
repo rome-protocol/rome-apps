@@ -1,0 +1,12 @@
+-- H1: a distinguishable marker for a backfill gap whose `from_block`
+-- predates the source's retained floor (Hercules prunes old sol_slot/eth_block
+-- history — on live Hadrian it retains only from slot ~470.7M). Such a gap's
+-- low end can NEVER be captured. `backfill::run_backfill_once` sets this flag
+-- (plus a loud tracing::error!) instead of walking only the retained tail and
+-- marking the whole gap clean-`remediated_at` with a falsely-complete count.
+--
+-- `remediated_at` stays NULL for a pruned gap; `source_pruned = TRUE` is what
+-- removes it from the pending queue (pending_gaps filters `NOT source_pruned`)
+-- so it neither re-alarms every tick nor head-of-line-blocks other gaps —
+-- while staying honestly distinguishable from a clean remediation.
+ALTER TABLE audit.backfill_gap ADD COLUMN source_pruned BOOLEAN NOT NULL DEFAULT FALSE;

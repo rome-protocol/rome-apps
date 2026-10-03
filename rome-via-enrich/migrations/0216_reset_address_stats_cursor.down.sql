@@ -1,0 +1,6 @@
+-- 0216_reset_address_stats_cursor.down.sql
+--
+-- No-op. The up migration deletes the address_stats cursor to force a one-time
+-- backfill re-scan; the prior cursor value cannot be reconstructed, so there is
+-- nothing to restore. The worker simply re-establishes its cursor on the next
+-- run. (Reverting this migration does not un-backfill first_seen/last_seen.)

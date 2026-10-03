@@ -1,0 +1,80 @@
+# Example services for running the Rome Apps CLI from the published image.
+#
+# Required environment (shell or .env file next to this compose file):
+#   PROGRAM_ID   Rome EVM program address (base58)
+#   CHAIN_ID     rollup chain ID
+#   SOLANA_RPC   Solana JSON-RPC URL
+# Optional:
+#   ROME_APPS_IMAGE   image to use (default romeprotocol/rome-apps:latest)
+#   PROXY_CONFIG      proxy config path inside the container, for the resource commands
+#   KEYPAIR           keypair path inside the container, for the treasury commands
+#
+# Mount config and keypair files into the containers as needed (see the commented
+# `volumes` example below).
+#
+# Usage:
+#   docker compose -f cli/docker-compose.yml run --rm get_rollups
+
+x-cli: &cli
+  image: ${ROME_APPS_IMAGE:-romeprotocol/rome-apps:latest}
+  network_mode: host
+  # volumes:
+  #   - ./cfg:/opt/cfg:ro
+  #   - ./keys:/opt/keys:ro
+
+services:
+  get_rollups:
+    <<: *cli
+    entrypoint: >
+      /bin/sh -c
+      "./cli --program-id $${PROGRAM_ID} --url $${SOLANA_RPC} get-rollups"
+    environment:
+      PROGRAM_ID: ${PROGRAM_ID:?set PROGRAM_ID}
+      SOLANA_RPC: ${SOLANA_RPC:?set SOLANA_RPC}
+
+  get_treasure_balance:
+    <<: *cli
+    entrypoint: >
+      /bin/sh -c
+      "./cli --program-id $${PROGRAM_ID} --chain-id $${CHAIN_ID} --url $${SOLANA_RPC} get-treasure-balance"
+    environment: &env
+      PROGRAM_ID: ${PROGRAM_ID:?set PROGRAM_ID}
+      CHAIN_ID: ${CHAIN_ID:-}
+      SOLANA_RPC: ${SOLANA_RPC:?set SOLANA_RPC}
+      PROXY_CONFIG: ${PROXY_CONFIG:-/opt/cfg/proxy-config.yml}
+      KEYPAIR: ${KEYPAIR:-/opt/keys/authority.json}
+
+  create_treasure:
+    <<: *cli
+    entrypoint: >
+      /bin/sh -c
+      "./cli --program-id $${PROGRAM_ID} --chain-id $${CHAIN_ID} --url $${SOLANA_RPC} --keypair $${KEYPAIR} create-treasure"
+    environment: *env
+
+  join_treasure:
+    <<: *cli
+    entrypoint: >
+      /bin/sh -c
+      "./cli --program-id $${PROGRAM_ID} --chain-id $${CHAIN_ID} --url $${SOLANA_RPC} --keypair $${KEYPAIR} join-treasure"
+    environment: *env
+
+  resources:
+    <<: *cli
+    entrypoint: >
+      /bin/sh -c
+      "./cli --program-id $${PROGRAM_ID} --chain-id $${CHAIN_ID} --url $${SOLANA_RPC} resources $${PROXY_CONFIG}"
+    environment: *env
+
+  allocate-resources:
+    <<: *cli
+    entrypoint: >
+      /bin/sh -c
+      "./cli --program-id $${PROGRAM_ID} --chain-id $${CHAIN_ID} --url $${SOLANA_RPC} allocate-resources $${PROXY_CONFIG}"
+    environment: *env
+
+  deallocate-resources:
+    <<: *cli
+    entrypoint: >
+      /bin/sh -c
+      "./cli --program-id $${PROGRAM_ID} --chain-id $${CHAIN_ID} --url $${SOLANA_RPC} deallocate-resources $${PROXY_CONFIG}"
+    environment: *env

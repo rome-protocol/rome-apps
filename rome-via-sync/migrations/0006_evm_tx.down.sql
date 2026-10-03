@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS rome_via.evm_tx CASCADE;

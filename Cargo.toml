@@ -1,0 +1,117 @@
+[workspace]
+members = ["proxy", "cli", "hercules", "rome-via-api", "rome-via-classify", "rome-via-sync", "rome-via-enrich", "cardo-service", "rome-audit"]
+resolver = "2"
+
+[workspace.dependencies]
+rome-via-classify = { path = "rome-via-classify" }
+clap = "4.5.4"
+dotenv = "0.15.0"
+url = { version = "2.5.0", features = ["serde"] }
+
+# codec
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+serde_yaml = "0.9.33"
+hex = "0.4.3"
+# Base58 (Solana pubkey text encoding) — version pinned to what's already
+# resolved transitively via solana-sdk (see Cargo.lock), so adding it as a
+# direct dependency doesn't move the lockfile.
+bs58 = "0.5"
+
+# jsonrpc server
+jsonrpsee = { version = "0.24.8", features = ["server", "macros"] }
+
+# error
+anyhow = "1.0.86"
+thiserror = "2.0.11"
+
+# log
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+console-subscriber = "0.4.0"
+
+# async
+tokio = { version = "1.38.0", features = ["full"] }
+tokio-util = "0.7.10"
+async-trait = "0.1.80"
+futures = "0.3.30"
+
+# rome
+rome-sdk = { path = "../rome-sdk/rome-sdk", default-features = false }
+rome-obs = { path = "../rome-sdk/rome-obs" }
+# rome-jito-bundler is a separate workspace crate from rome-sdk; the rome-sdk
+# meta-crate does NOT re-export it. Pulled in directly so the proxy can
+# instantiate `JitoBundleClient` when the operator opts in via config.
+# Default features off — proxy doesn't need the `fallback` (rome-solana) or
+# `metrics` (rome-obs/prometheus) wiring at the bundler crate level today;
+# proxy's own metrics sidecar uses prometheus directly.
+rome-jito-bundler = { path = "../rome-sdk/rome-jito-bundler", default-features = false }
+
+# evm
+ethers = "2.0.14"
+bigdecimal = "0.4"
+rlp = "0.5"
+
+# solana
+solana-sdk = "=4.0.1"
+solana-client = "=4.2.1"
+spl-token-2022-interface = "=2.1.0"
+solana-commitment-config = "=3.1.1"
+solana-cli-config = "=4.2.1"
+solana-address-lookup-table-interface = { version = "=3.1.0", features = ["bincode", "bytemuck"] }
+spl-associated-token-account-interface = {version = "2.0.0", features = ["borsh"]}
+
+
+compile-time = { version = "0.2.0" }
+
+# http server (health endpoints)
+axum = "0.7"
+
+# postgres (rome-via-sync data layer)
+# `tls-rustls` enables TLS support so connections to a managed Postgres (or any
+# Postgres accepting/requiring SSL) negotiate properly. Without this feature,
+# sqlx silently connects in plaintext regardless of the URL's `sslmode=`
+# parameter (a security audit found plaintext rome-via connections in a
+# deployed environment before this was enabled).
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros", "chrono", "uuid", "bigdecimal"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# TOML config parsing (rome-via services use TOML config files)
+toml = "0.8"
+
+# OpenAPI (rome-via-api)
+utoipa = { version = "5", features = ["axum_extras"] }
+utoipa-axum = "0.2"
+utoipa-swagger-ui = { version = "8", features = ["axum"] }
+
+# HTTP middleware (rome-via-api: CORS, tracing)
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+
+# HMAC signing (rome-via-api: cursor tokens)
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+
+# Redis cache (rome-via-api: RPC fallback cache)
+redis = { version = "0.26", features = ["tokio-comp", "connection-manager"] }
+
+# Token bucket rate limiter (rome-via-api: per-chain outbound rate limiting)
+governor = "0.6"
+
+# cardo-service additions
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+jsonschema = { version = "0.18", features = ["draft202012"] }
+ed25519-dalek = { version = "2.1", features = ["std"] }
+
+[patch.crates-io.curve25519-dalek]
+git ="https://github.com/rome-protocol/curve25519-dalek"
+branch = "rustls-dep-hell-1-18"
+
+# Host-only: restores GetSysvar for off-chain builds (the Rome EVM emulator) on the
+# Agave 4.x crate line, where upstream solana-get-sysvar fails closed with
+# UnsupportedSysvar off-chain. The target_os = "solana" branch is byte-for-byte
+# upstream — on-chain program behavior is unaffected. See
+# https://github.com/rome-protocol/solana-get-sysvar
+[patch.crates-io.solana-get-sysvar]
+git = "https://github.com/rome-protocol/solana-get-sysvar"
+branch = "host-sysvar-registry"

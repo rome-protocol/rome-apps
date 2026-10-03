@@ -1,0 +1,33 @@
+-- 0217_relabel_unlabeled_contracts.up.sql
+--
+-- One-time re-resolution of seen-but-unlabeled contract_labels rows so the new
+-- description()-based oracle-adapter labeling applies to ALREADY-cached rows.
+--
+-- Why: the contract_labels worker's poll query triggers on "absent from
+-- contract_labels" (DISTINCT evm_tx.to_addr LEFT JOIN contract_labels WHERE
+-- c.address IS NULL). A row already cached with display_label NULL is therefore
+-- NEVER re-probed. The description() fallback (this release) labels oracle
+-- price-feed adapters (OG-V2 / Pyth-Pull EIP-1167 clones that revert
+-- name()/symbol() but expose a feed name via the Chainlink AggregatorV3
+-- description() selector — e.g. "ETH / USD", "JITOSOL/USD cached"), but only for
+-- contracts resolved AFTER the upgrade. The adapters already on-chain were cached
+-- seen-but-unlabeled by the prior release (the re-probe-storm fix), so without
+-- this they would stay unlabeled forever.
+--
+-- Fix: delete the seen-but-unlabeled rows (display_label IS NULL) so the worker
+-- re-resolves each once with the new logic. Oracle adapters get their feed name;
+-- EOAs (getCode empty) and genuinely-unidentified contracts re-cache as seen
+-- (display_label NULL) on the first poll after this runs. The re-probe is bounded
+-- and one-time (sqlx applies each migration exactly once per DB): on a chain with
+-- N unlabeled addresses it costs ~N eth_getCode + a few name()/symbol()/
+-- description() reads ONCE, not per poll — negligible next to normal indexing.
+--
+-- Not chain-scoped by design: rome_via_db derived tables are chain_id-keyed but
+-- this re-resolution is correct for every chain in the DB (each re-resolves its
+-- own rows against its own proxy). The labeled rows that carry a real
+-- display_label (registry tier, name/symbol/bytecode hits) are untouched.
+--
+-- OPERATOR NOTE: the re-probe runs against the per-chain proxy (rome_via_proxy_url)
+-- via the contract_labels worker's normal getCode-first path; it is self-limiting
+-- (LIMIT batch_size per poll) and idempotent after the first pass.
+DELETE FROM rome_via.contract_labels WHERE display_label IS NULL;

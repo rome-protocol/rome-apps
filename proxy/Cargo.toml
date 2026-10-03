@@ -1,0 +1,78 @@
+[package]
+name = "proxy"
+version = "0.1.0"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[features]
+testnet = ["rome-sdk/testnet"]
+mainnet = ["rome-sdk/mainnet"]
+ci = ["rome-sdk/ci"]
+# Compiles the RpcEmulator backend in rome-evm-client alongside the inproc
+# backend. Selection happens at runtime — set EMULATOR_RPC_URL to route
+# read-path calls through the standalone emulator RPC service; leave unset
+# to keep the in-process backend.
+emulator-rpc = ["rome-sdk/emulator-rpc"]
+emulator-inproc = ["rome-sdk/emulator-inproc"]
+default = [ "ci" ]
+
+[dependencies]
+anyhow = { workspace = true }
+tokio = { workspace = true }
+jsonrpsee = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+solana-sdk = { workspace = true }
+solana-client = { workspace = true }
+spl-associated-token-account-interface = { workspace = true }
+# Used by `rome_sendUnsignedTransaction` to materialize the Solana ed25519
+# signature into the shape `RomeEVMClient::send_transaction_ed25519` expects.
+ed25519-dalek = { workspace = true }
+solana-commitment-config = { workspace = true }
+thiserror = { workspace = true }
+hex = { workspace = true }
+# Direct JSON-RPC fetch in `debug_traceRomeTransaction` — avoids pulling
+# solana-transaction-status into proxy's direct deps just to read
+# meta.logMessages off a getTransaction response.
+reqwest = { version = "0.12", features = ["json"] }
+rome-sdk = { workspace = true, default-features = false }
+rome-obs = { workspace = true }
+# Optional Jito bundle plumbing. Default-off invariant: proxy config without a
+# `jito_bundler` section produces 100% identical behavior to today (no
+# `JitoBundleClient` constructed, no per-tx priority-fee check, no extra
+# hot-path code reachable). Section present → bundler instantiated at
+# startup, ready for use by future dispatch wiring (JB6.2 follow-up).
+rome-jito-bundler = { workspace = true, default-features = false }
+ethers = { workspace = true }
+# RLP decoder used by `eth_send_raw_transaction` to extract
+# `max_priority_fee_per_gas` for the JB6.2 routing predicate.
+# Re-decode is cheap (~µs) compared to the downstream `send_transaction`
+# decode and avoids passing decoded state across the public API.
+rlp = { workspace = true }
+clap = { workspace = true }
+dotenv = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["json"] }
+tracing = { workspace = true }
+tokio-util = { workspace = true }
+
+# Prometheus /metrics HTTP sidecar — exposes RED metrics for eth_* methods.
+axum = { workspace = true }
+prometheus = "0.13"
+once_cell = "1"
+# setpriority(2) to nice the read-pool worker threads (write-path right-of-way).
+libc = "0.2"
+# MPMC job queue feeding the read pool's worker threads.
+crossbeam-channel = "0.5"
+base64 = { workspace = true }
+wincode = "=0.5.5"
+
+[build-dependencies]
+compile-time = { version = "0.2.0" }
+
+# Test-only deps. wiremock backs the JB6 predicate tests so we can construct
+# an `Arc<JitoBundleClient>` without hitting a real Block Engine; pinned to
+# the same major version rome-jito-bundler uses upstream for consistency.
+[dev-dependencies]
+wiremock = "0.6"

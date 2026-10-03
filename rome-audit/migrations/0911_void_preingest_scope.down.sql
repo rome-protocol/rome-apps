@@ -1,0 +1,7 @@
+-- INTENTIONALLY INERT. This migration's `up` is a DELETE of void
+-- `audit.ingest_scope` rows (pairs claiming ingestability on a chain that
+-- never had an ingest watermark). A DELETE cannot be un-done — the voided
+-- rows carried no information worth restoring (they were the B2 latch bug
+-- itself), and re-inserting them would re-suppress gap detection. The
+-- forward-only recovery is correct: after this runs, the next resolve pass
+-- re-records the honest backfill gaps. Nothing to revert here.

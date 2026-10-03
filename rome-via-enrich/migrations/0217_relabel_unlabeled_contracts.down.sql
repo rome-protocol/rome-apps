@@ -1,0 +1,7 @@
+-- 0217_relabel_unlabeled_contracts.down.sql
+--
+-- No-op. The up migration deletes seen-but-unlabeled contract_labels rows to
+-- force a one-time re-resolution with the description()-based oracle-adapter
+-- labeling; the deleted rows carried no display_label (nothing of value to
+-- restore), and the worker re-populates them on its next poll. Reverting this
+-- migration does not un-label the oracle adapters.
