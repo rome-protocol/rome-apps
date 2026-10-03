@@ -376,7 +376,7 @@ environment variable.
 | `[[contract_labels]]`, `[[program_labels]]` | no | — | Deployment-provided labels for protocol contracts and Solana programs. |
 | `fourbyte_enabled`, `abi_seed_dir` | no | `true`, unset | Method-selector resolution sources (4byte.directory fallback, local ABI seeds). |
 | `verifier_url` | no | unset | Sourcify-compatible verifier; enables the `verified_labels` worker. |
-| `throughput_record_poll_secs`, `throughput_record_recompute_secs`, `cross_vm_seams_poll_secs` | no | `30`, `3600`, `10` | Worker intervals. |
+| `throughput_record_poll_secs`, `cross_vm_seams_poll_secs` | no | `30`, `10` | Worker intervals. |
 
 `rome-via-enrich maintenance <op>` runs a one-shot maintenance operation and exits (dry run
 unless `--apply`): `reextract-transfers`, `backfill-balances` (`--token`, `--concurrency`),

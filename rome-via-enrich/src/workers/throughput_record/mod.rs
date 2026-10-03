@@ -136,8 +136,8 @@ async fn read_record(pool: &PgPool, chain_id: i64) -> anyhow::Result<Record> {
         total_txs: r.get("total_txs"), app_txs: r.get("app_txs"), ts: r.get("block_timestamp"),
         gas_used: r.try_get::<Option<i64>, _>("gas_used").ok().flatten().unwrap_or(0),
     }).collect();
-    // Cumulative histogram; absent rows (never seeded) read as zeros and the next
-    // full recompute repopulates them.
+    // Cumulative histogram; absent rows (never seeded) read as zeros. The next Seed
+    // rebuild (forced by deleting the cursor row) repopulates them.
     let hr = sqlx::query(
         "SELECT bucket_idx, blocks FROM rome_via.throughput_histogram WHERE chain_id=$1",
     )
