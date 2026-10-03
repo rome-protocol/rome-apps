@@ -12,8 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   endpoint, is the only supported deployment.
 
 ### Changed
-- **rome-via-enrich**: the throughput-record Seed and hourly Backstop rebuild the record by paging 50,000 blocks at a time instead of loading every block in one query (15.6 GB on Hadrian, over the 9.6 GB container cap, so the record was never rebuilt); the result is the same record, written once at the end, and every page (incremental and rebuild) now ends on a complete block number.
-- **rome-via-enrich**: the throughput-record worker resumes from its saved cursor on restart instead of rescanning every block of the chain (which reached 15.6 GB on Hadrian and crash-looped under the container cap), and each incremental poll reads at most 50,000 blocks so a stale cursor catches up a page at a time. The periodic full recompute is timed from process start.
+- **rome-via-enrich**: the throughput-record worker no longer runs a periodic full recompute (the hourly Backstop); it updates incrementally from its cursor and rebuilds in full only when no cursor or record exists (delete the cursor row to force one). The `throughput_record_recompute_secs` setting is removed; a TOML that still sets it keeps loading.
+- **rome-via-enrich**: the throughput-record Seed rebuild pages 50,000 blocks at a time instead of loading every block in one query (15.6 GB on Hadrian, over the 9.6 GB container cap, so the record was never rebuilt); the result is the same record, written once at the end, and every page (incremental and rebuild) now ends on a complete block number.
+- **rome-via-enrich**: the throughput-record worker resumes from its saved cursor on restart instead of rescanning every block of the chain (which reached 15.6 GB on Hadrian and crash-looped under the container cap), and each incremental poll reads at most 50,000 blocks so a stale cursor catches up a page at a time.
 - **rome-via-api**: the action-tag classifier headlines the gas-wrapper precompile
   legs — `HelperProgram.deposit_from_ata(uint256)` tags `unwrap` and
   `Withdraw.withdraw_to_ata/withdraw_to_pda(uint256)` tag `wrap` (each ahead of the

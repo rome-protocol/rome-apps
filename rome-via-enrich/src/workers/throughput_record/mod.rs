@@ -3,7 +3,7 @@ pub mod calc;
 use self::calc::{merge_record, trim_full_page, BlockRec, Hist, PagedRebuild, Point, Record, WindowRec, HIST_LABELS};
 use rome_via_classify::ORACLE_SELECTORS;
 use sqlx::{PgPool, Row};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const MIN_ELAPSED: i64 = 1;
 const W: usize = 10;
@@ -12,7 +12,7 @@ const W: usize = 10;
 /// a page per poll instead of loading the whole gap into memory.
 const INCREMENTAL_PAGE: i64 = 50_000;
 
-/// Max blocks one page of the Seed/Backstop rebuild loads; the rebuild pages through the whole
+/// Max blocks one page of the Seed rebuild loads; the rebuild pages through the whole
 /// chain at this size instead of holding every block in memory.
 const REBUILD_PAGE: i64 = 50_000;
 
@@ -65,7 +65,7 @@ async fn fetch_points_page(pool: &PgPool, chain_id: i64, after_block: i64, page_
     Ok(rows_to_points(&rows))
 }
 
-/// Full rebuild for Seed/Backstop: page through the chain, folding each page into a fixed-size
+/// Full rebuild for Seed: page through the chain, folding each page into a fixed-size
 /// record, so memory stays at one page rather than every block. Nothing is written here; the
 /// caller writes the finished record and cursor once, atomically.
 async fn rebuild_record(pool: &PgPool, chain_id: i64) -> anyhow::Result<(Record, Option<i64>)> {
@@ -80,30 +80,21 @@ async fn rebuild_record(pool: &PgPool, chain_id: i64) -> anyhow::Result<(Record,
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PollMode {
-    /// No usable saved state: full scan.
+    /// No usable saved state: full paged rebuild.
     Seed,
     /// Resume from the saved cursor, one bounded page.
     Incremental,
-    /// Periodic full recompute that self-heals after a backfill.
-    Backstop,
 }
 
 /// Decide the poll mode. A saved cursor plus a non-empty saved record resumes incrementally,
-/// including on the first poll after a process start. `since_last_recompute` is the time since
-/// the later of process start and the last full recompute, so the backstop never fires at
-/// startup; `None` (no baseline) never triggers it.
-fn plan_poll(
-    cursor: Option<i64>,
-    record_is_empty: bool,
-    since_last_recompute: Option<Duration>,
-    recompute_interval: Duration,
-) -> PollMode {
+/// on every poll including the first after a process start. A full rebuild runs only when
+/// there is nothing to resume from; there is no periodic recompute, because a paged rebuild
+/// on a large chain takes hours and blocks incremental updates while it runs.
+fn plan_poll(cursor: Option<i64>, record_is_empty: bool) -> PollMode {
     if cursor.is_none() || record_is_empty {
-        return PollMode::Seed;
-    }
-    match since_last_recompute {
-        Some(d) if d >= recompute_interval => PollMode::Backstop,
-        _ => PollMode::Incremental,
+        PollMode::Seed
+    } else {
+        PollMode::Incremental
     }
 }
 
@@ -145,8 +136,8 @@ async fn read_record(pool: &PgPool, chain_id: i64) -> anyhow::Result<Record> {
         total_txs: r.get("total_txs"), app_txs: r.get("app_txs"), ts: r.get("block_timestamp"),
         gas_used: r.try_get::<Option<i64>, _>("gas_used").ok().flatten().unwrap_or(0),
     }).collect();
-    // Cumulative histogram; absent rows (never seeded) read as zeros and the next
-    // full recompute repopulates them.
+    // Cumulative histogram; absent rows (never seeded) read as zeros. The next Seed
+    // rebuild (forced by deleting the cursor row) repopulates them.
     let hr = sqlx::query(
         "SELECT bucket_idx, blocks FROM rome_via.throughput_histogram WHERE chain_id=$1",
     )
@@ -215,18 +206,15 @@ pub async fn run(
     pool: PgPool,
     chain_id: i64,
     poll_interval: Duration,
-    recompute_interval: Duration,
 ) -> anyhow::Result<()> {
-    // Hybrid (spec §5 + §6): incremental on new blocks, with a SEED when nothing is saved and a
-    // periodic full recompute BACKSTOP that self-heals after a backfill. The saved cursor and
-    // record survive restarts, so a restart resumes incrementally; the backstop is timed from
-    // process start or the last recompute, never immediately at startup.
-    let mut last_recompute = Instant::now();
+    // Incremental on new blocks, with a SEED (paged full rebuild) only when nothing is saved.
+    // The saved cursor and record survive restarts, so a restart resumes incrementally. To force
+    // a rebuild (after a backfill or a rule change), delete the cursor row.
     loop {
         let cursor = read_cursor(&pool, chain_id).await?;
         let existing = if cursor.is_some() { Some(read_record(&pool, chain_id).await?) } else { None };
         let empty = existing.as_ref().is_none_or(record_is_empty);
-        let mode = plan_poll(cursor, empty, Some(last_recompute.elapsed()), recompute_interval);
+        let mode = plan_poll(cursor, empty);
         match (mode, cursor, existing) {
             // INCREMENTAL: fold one bounded page of blocks since the cursor (with W-1 overlap
             // for boundary windows); a long outage catches up a page per poll.
@@ -241,13 +229,12 @@ pub async fn run(
                     }
                 }
             }
-            // SEED (nothing saved) or BACKSTOP (periodic): paged full rebuild, then one atomic
+            // SEED (nothing saved): paged full rebuild, then one atomic
             // overwrite of both tables and the cursor.
             _ => {
                 let (rec, max_block) = rebuild_record(&pool, chain_id).await?;
                 write_record(&pool, chain_id, &rec, max_block).await?;
-                last_recompute = Instant::now();
-                tracing::debug!(chain_id, mode = "recompute", windows = rec.windows.len(), blocks = rec.blocks.len(), "throughput record");
+                tracing::debug!(chain_id, mode = "seed", windows = rec.windows.len(), blocks = rec.blocks.len(), "throughput record");
             }
         }
         tokio::time::sleep(poll_interval).await;
@@ -277,36 +264,29 @@ mod tests {
 
     use super::calc::{BlockRec, Record};
     use super::{incremental_points_query, plan_poll, record_is_empty, PollMode, INCREMENTAL_PAGE};
-    use std::time::Duration;
-
-    const INTERVAL: Duration = Duration::from_secs(3600);
-
     #[test]
     fn startup_with_cursor_and_saved_record_resumes_incrementally() {
-        assert_eq!(plan_poll(Some(100), false, Some(Duration::ZERO), INTERVAL), PollMode::Incremental);
+        assert_eq!(plan_poll(Some(100), false), PollMode::Incremental);
+    }
+
+    #[test]
+    fn existing_cursor_with_record_is_incremental_however_long_the_process_has_run() {
+        // plan_poll takes no time input: a cursor plus a non-empty record is Incremental on
+        // every poll, so no periodic full rebuild can displace incremental updates.
+        for _poll in 0..1000 {
+            assert_eq!(plan_poll(Some(100), false), PollMode::Incremental);
+        }
     }
 
     #[test]
     fn no_cursor_seeds() {
-        assert_eq!(plan_poll(None, false, Some(Duration::ZERO), INTERVAL), PollMode::Seed);
-        assert_eq!(plan_poll(None, true, Some(Duration::ZERO), INTERVAL), PollMode::Seed);
+        assert_eq!(plan_poll(None, false), PollMode::Seed);
+        assert_eq!(plan_poll(None, true), PollMode::Seed);
     }
 
     #[test]
     fn cursor_with_empty_record_seeds() {
-        assert_eq!(plan_poll(Some(100), true, Some(Duration::ZERO), INTERVAL), PollMode::Seed);
-    }
-
-    #[test]
-    fn interval_not_elapsed_stays_incremental() {
-        let just_under = INTERVAL - Duration::from_secs(1);
-        assert_eq!(plan_poll(Some(100), false, Some(just_under), INTERVAL), PollMode::Incremental);
-    }
-
-    #[test]
-    fn interval_elapsed_runs_backstop() {
-        assert_eq!(plan_poll(Some(100), false, Some(INTERVAL), INTERVAL), PollMode::Backstop);
-        assert_eq!(plan_poll(Some(100), false, Some(INTERVAL * 2), INTERVAL), PollMode::Backstop);
+        assert_eq!(plan_poll(Some(100), true), PollMode::Seed);
     }
 
     #[test]

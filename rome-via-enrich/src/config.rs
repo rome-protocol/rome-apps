@@ -178,10 +178,6 @@ pub struct ViaEnrichConfig {
     /// Defaults to 30.
     pub throughput_record_poll_secs: Option<u64>,
 
-    /// How often the throughput_record worker recomputes the peak record (seconds).
-    /// Defaults to 3600.
-    pub throughput_record_recompute_secs: Option<u64>,
-
     /// cross_vm_seams worker poll interval (default 10s).
     pub cross_vm_seams_poll_secs: Option<u64>,
 
@@ -240,10 +236,6 @@ impl ViaEnrichConfig {
         Duration::from_secs(self.cross_vm_seams_poll_secs.unwrap_or(10))
     }
 
-    pub fn throughput_record_recompute_interval(&self) -> Duration {
-        Duration::from_secs(self.throughput_record_recompute_secs.unwrap_or(3600))
-    }
-
     /// Parse a TOML config file from disk.
     pub async fn load(path: &std::path::Path) -> anyhow::Result<Self> {
         let bytes = tokio::fs::read(path)
@@ -295,6 +287,22 @@ mod tests {
             cfg.rome_evm_program_id,
             "romedpkFKEu3JJrYujtNUferyEv47UxvjZe2QcdPwN8"
         );
+    }
+
+    /// A deployed TOML that still sets the retired `throughput_record_recompute_secs`
+    /// key must keep loading (the struct ignores unknown keys).
+    #[test]
+    fn retired_throughput_record_recompute_secs_key_still_parses() {
+        let toml = r#"
+            chain_id = 121301
+            db_url = "postgres://user:pw@host:5432/db"
+            rome_evm_program_id = "romedpkFKEu3JJrYujtNUferyEv47UxvjZe2QcdPwN8"
+            throughput_record_poll_secs = 15
+            throughput_record_recompute_secs = 3600
+        "#;
+        let cfg: ViaEnrichConfig = toml::from_str(toml).expect("retired key must not break parsing");
+        cfg.validate().expect("validate");
+        assert_eq!(cfg.throughput_record_poll_interval(), Duration::from_secs(15));
     }
 
     /// Missing `chain_id` must fail to parse — no silent fallback to a stale
